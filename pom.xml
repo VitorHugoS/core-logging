@@ -85,7 +85,7 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.80</minimum> <!-- Cobertura mínima de 80% exigida -->
+                                            <minimum>1.00</minimum> <!-- Cobertura mínima de 100% exigida -->
                                         </limit>
                                     </limits>
                                 </rule>
@@ -117,7 +117,7 @@
                     <mutators>
                         <mutator>DEFAULTS</mutator>
                     </mutators>
-                    <mutationThreshold>80</mutationThreshold> <!-- Taxa mínima de sobrevivência à mutação -->
+                    <mutationThreshold>100</mutationThreshold> <!-- Zero mutantes sobreviventes (100%) -->
                 </configuration>
             </plugin>
         </plugins>
