@@ -165,14 +165,21 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Spring Kafka para integração de interceptors de mensageria -->
+        <!-- Kafka Producer e Consumer Interceptors -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
             <scope>provided</scope>
         </dependency>
 
-        <!-- Micrometer Tracing para gerar TraceId e SpanId automaticamente no log -->
+        <!-- Logstash Encoder para output em JSON -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>8.0</version>
+        </dependency>
+
+        <!-- Observability (Micrometer) para injeção de TraceId -->
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-tracing</artifactId>
