@@ -1,0 +1,6 @@
+<configuration>
+    <appender name="TEST" class="com.corelogging.filter.TestAppender" />
+    <root level="trace">
+        <appender-ref ref="TEST" />
+    </root>
+</configuration>

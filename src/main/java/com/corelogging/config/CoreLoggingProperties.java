@@ -18,7 +18,7 @@ public class CoreLoggingProperties {
 
   public static class Payload {
     private boolean enabled = false;
-    private int maxCacheSize = 1048576; // Limite de 1MB por padrão para segurança de memória
+    private int maxCacheSize = 1048576;
     private List<String> obfuscateFields = List.of("password", "token", "cpf", "document");
 
     public int getMaxCacheSize() {

@@ -3,6 +3,7 @@ package com.corelogging.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.corelogging.filter.CoreLoggingClientInterceptor;
+import com.corelogging.filter.CoreLoggingFeignCapability;
 import com.corelogging.filter.CoreLoggingFilter;
 import org.junit.jupiter.api.Test;
 
@@ -15,8 +16,10 @@ class CoreLoggingAutoConfigurationTest {
 
     CoreLoggingFilter filter = autoConfiguration.coreLoggingFilter(properties);
     CoreLoggingClientInterceptor interceptor = autoConfiguration.coreLoggingClientInterceptor();
+    CoreLoggingFeignCapability feignCapability = autoConfiguration.coreLoggingFeignCapability();
 
     assertThat(filter).isNotNull();
     assertThat(interceptor).isNotNull();
+    assertThat(feignCapability).isNotNull();
   }
 }

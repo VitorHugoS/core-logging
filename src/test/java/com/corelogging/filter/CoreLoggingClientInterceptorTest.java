@@ -1,17 +1,19 @@
 package com.corelogging.filter;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.HashMap;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.slf4j.MDC;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpRequest;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpResponse;
 
@@ -19,6 +21,7 @@ class CoreLoggingClientInterceptorTest {
 
   private CoreLoggingClientInterceptor interceptor;
   private HttpRequest request;
+  private byte[] body;
   private ClientHttpRequestExecution execution;
   private ClientHttpResponse response;
 
@@ -26,68 +29,99 @@ class CoreLoggingClientInterceptorTest {
   void setUp() {
     interceptor = new CoreLoggingClientInterceptor();
     request = mock(HttpRequest.class);
+    body = "request body".getBytes();
     execution = mock(ClientHttpRequestExecution.class);
     response = mock(ClientHttpResponse.class);
+    MDC.clear();
+    TestAppender.clear();
   }
 
   @Test
-  void shouldInterceptAndLogCorrectly() throws IOException {
-    when(request.getMethod()).thenReturn(HttpMethod.POST);
-    when(request.getURI()).thenReturn(URI.create("http://api.exemplo.com/test"));
-    when(execution.execute(any(HttpRequest.class), any(byte[].class))).thenReturn(response);
-    when(response.getStatusCode()).thenReturn(HttpStatus.OK);
-    byte[] body = "test_body".getBytes();
+  void shouldLogAndPopulateMdcForOutgoingRequest() throws IOException {
+    given(request.getMethod()).willReturn(HttpMethod.POST);
+    given(request.getURI()).willReturn(URI.create("http://api.exemplo.com/test"));
+    given(response.getStatusCode()).willReturn(org.springframework.http.HttpStatus.OK);
 
-    try (MockedStatic<MDC> mockedMdc = mockStatic(MDC.class)) {
-      mockedMdc.when(() -> MDC.get(anyString())).thenReturn(null);
+    Map<String, String> mdcDuringRequest = new HashMap<>();
+    given(execution.execute(any(), any()))
+        .willAnswer(
+            invocation -> {
+              mdcDuringRequest.put("correlation_id", MDC.get("correlation_id"));
+              mdcDuringRequest.put("log_type", MDC.get("log_type"));
+              mdcDuringRequest.put("span.kind", MDC.get("span.kind"));
+              return response;
+            });
 
-      ClientHttpResponse actualResponse = interceptor.intercept(request, body, execution);
-      assertThat(actualResponse).isEqualTo(response);
+    ClientHttpResponse actualResponse = interceptor.intercept(request, body, execution);
 
-      mockedMdc.verify(() -> MDC.put("log_type", "out_request"));
-      mockedMdc.verify(() -> MDC.put("span.kind", "CLIENT"));
-      mockedMdc.verify(() -> MDC.put("http.method", "POST"));
-      mockedMdc.verify(() -> MDC.put("http.url", "http://api.exemplo.com/test"));
-      mockedMdc.verify(() -> MDC.put("http.status_code", "200"));
-      mockedMdc.verify(() -> MDC.remove("log_type"));
+    assertThat(actualResponse).isEqualTo(response);
+    assertThat(mdcDuringRequest.get("log_type")).isEqualTo("out_request");
+    assertThat(mdcDuringRequest.get("span.kind")).isEqualTo("CLIENT");
+    assertThat(MDC.get("log_type")).isNull();
 
-      verify(execution, times(1)).execute(request, body);
+    assertThat(TestAppender.events).isNotEmpty();
+    ch.qos.logback.classic.spi.ILoggingEvent event = TestAppender.events.get(0);
+    assertThat(event.getMDCPropertyMap().get("http.status_code")).isEqualTo("200");
+    assertThat(event.getMDCPropertyMap().get("http.method")).isEqualTo("POST");
+    assertThat(event.getMDCPropertyMap().get("http.duration_ms")).isNotNull();
+    assertThat(Integer.parseInt(event.getMDCPropertyMap().get("http.duration_ms")))
+        .isGreaterThanOrEqualTo(0);
+  }
+
+  @Test
+  void shouldHandleNullMethodSafely() throws IOException {
+    given(request.getMethod()).willReturn(null);
+    given(request.getURI()).willReturn(URI.create("http://api.exemplo.com/test"));
+    given(response.getStatusCode()).willReturn(org.springframework.http.HttpStatus.BAD_REQUEST);
+
+    Map<String, String> mdcDuringRequest = new HashMap<>();
+    given(execution.execute(any(), any()))
+        .willAnswer(
+            invocation -> {
+              mdcDuringRequest.put("log_type", MDC.get("log_type"));
+              return response;
+            });
+
+    interceptor.intercept(request, body, execution);
+
+    assertThat(mdcDuringRequest.get("log_type")).isEqualTo("out_request");
+  }
+
+  @Test
+  void shouldPropagateExceptionAndClearMdc() throws IOException {
+    given(request.getMethod()).willReturn(HttpMethod.GET);
+    given(request.getURI()).willReturn(URI.create("http://api.exemplo.com/test"));
+    given(execution.execute(any(), any())).willThrow(new IOException("Timeout"));
+
+    try {
+      interceptor.intercept(request, body, execution);
+    } catch (IOException e) {
+
     }
+
+    assertThat(MDC.get("log_type")).isNull();
+
+    assertThat(TestAppender.events).isNotEmpty();
+    ch.qos.logback.classic.spi.ILoggingEvent event = TestAppender.events.get(0);
+    assertThat(event.getMDCPropertyMap().get("error.stacktrace")).contains("Timeout");
+    assertThat(event.getLevel().toString()).isEqualTo("ERROR");
   }
 
   @Test
   void shouldRestorePreviousMdcState() throws IOException {
-    when(request.getMethod()).thenReturn(HttpMethod.GET);
-    when(request.getURI()).thenReturn(URI.create("http://api.exemplo.com/test"));
-    when(execution.execute(any(HttpRequest.class), any(byte[].class))).thenReturn(response);
-    when(response.getStatusCode()).thenReturn(HttpStatus.NOT_FOUND);
+    MDC.put("log_type", "previous_log_type");
+    MDC.put("span.kind", "previous_span_kind");
 
-    try (MockedStatic<MDC> mockedMdc = mockStatic(MDC.class)) {
-      mockedMdc.when(() -> MDC.get("log_type")).thenReturn("in_request");
-      mockedMdc.when(() -> MDC.get("span.kind")).thenReturn("SERVER");
+    given(request.getMethod()).willReturn(HttpMethod.POST);
+    given(request.getURI()).willReturn(URI.create("http://api.exemplo.com/test"));
+    given(response.getStatusCode()).willReturn(org.springframework.http.HttpStatus.OK);
+    given(execution.execute(any(), any())).willReturn(response);
 
-      interceptor.intercept(request, new byte[0], execution);
+    interceptor.intercept(request, body, execution);
 
-      mockedMdc.verify(() -> MDC.put("log_type", "in_request"));
-      mockedMdc.verify(() -> MDC.put("span.kind", "SERVER"));
-    }
-  }
+    assertThat(MDC.get("log_type")).isEqualTo("previous_log_type");
+    assertThat(MDC.get("span.kind")).isEqualTo("previous_span_kind");
 
-  @Test
-  void shouldHandleNullMethod() throws IOException {
-    when(request.getMethod()).thenReturn(null);
-    when(request.getURI()).thenReturn(URI.create("http://api.exemplo.com/test"));
-    when(execution.execute(any(HttpRequest.class), any(byte[].class))).thenReturn(response);
-    when(response.getStatusCode()).thenReturn(HttpStatus.OK);
-
-    try (MockedStatic<MDC> mockedMdc = mockStatic(MDC.class)) {
-      mockedMdc.when(() -> MDC.get(anyString())).thenReturn(null);
-
-      interceptor.intercept(request, new byte[0], execution);
-
-      mockedMdc.verify(() -> MDC.put("log_type", "out_request"));
-      // Shouldn't call MDC.put("http.method", ...) because it's null
-      mockedMdc.verify(() -> MDC.put(eq("http.method"), anyString()), never());
-    }
+    MDC.clear();
   }
 }

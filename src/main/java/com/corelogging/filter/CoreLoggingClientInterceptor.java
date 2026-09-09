@@ -18,10 +18,11 @@ public class CoreLoggingClientInterceptor implements ClientHttpRequestIntercepto
       HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
     long startTime = System.currentTimeMillis();
 
-    // Salva estado anterior do MDC caso essa thread já estivesse processando um in_request
     String previousLogType = MDC.get("log_type");
     String previousSpanKind = MDC.get("span.kind");
 
+    Throwable unhandledException = null;
+    ClientHttpResponse response = null;
     try {
       MDC.put("log_type", "out_request");
       MDC.put("span.kind", "CLIENT");
@@ -30,18 +31,32 @@ public class CoreLoggingClientInterceptor implements ClientHttpRequestIntercepto
       }
       MDC.put("http.url", request.getURI().toString());
 
-      // Executa a chamada real
-      ClientHttpResponse response = execution.execute(request, body);
-
+      response = execution.execute(request, body);
+      return response;
+    } catch (Throwable t) {
+      unhandledException = t;
+      throw t;
+    } finally {
       long duration = System.currentTimeMillis() - startTime;
-      MDC.put("http.status_code", String.valueOf(response.getStatusCode().value()));
       MDC.put("http.duration_ms", String.valueOf(duration));
 
-      log.info("Processed outgoing request {} {}", request.getMethod(), request.getURI());
+      if (response != null) {
+        MDC.put("http.status_code", String.valueOf(response.getStatusCode().value()));
+      }
 
-      return response;
-    } finally {
-      // Restaura o MDC para o estado original (provavelmente in_request)
+      if (unhandledException != null) {
+        java.io.StringWriter sw = new java.io.StringWriter();
+        unhandledException.printStackTrace(new java.io.PrintWriter(sw));
+        MDC.put("error.stacktrace", sw.toString());
+        log.error(
+            "Failed outgoing request {} {}",
+            request.getMethod(),
+            request.getURI(),
+            unhandledException);
+      } else {
+        log.info("Processed outgoing request {} {}", request.getMethod(), request.getURI());
+      }
+
       if (previousLogType != null) {
         MDC.put("log_type", previousLogType);
       } else {

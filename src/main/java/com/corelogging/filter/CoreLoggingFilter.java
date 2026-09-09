@@ -14,10 +14,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
-/**
- * Filtro que substitui o Aspecto (@Around). Captura toda a requisição, independentemente de erros
- * de conversão no DispatcherServlet.
- */
 public class CoreLoggingFilter extends OncePerRequestFilter implements Ordered {
 
   private static final Logger log = LoggerFactory.getLogger(CoreLoggingFilter.class);
@@ -38,7 +34,6 @@ public class CoreLoggingFilter extends OncePerRequestFilter implements Ordered {
     HttpServletRequest requestToUse = request;
     HttpServletResponse responseToUse = response;
 
-    // Fazemos o cache do stream para poder ler o body sem consumir o fluxo do InputStream
     if (wrapPayload) {
       if (!(request instanceof ContentCachingRequestWrapper)) {
         requestToUse =
@@ -49,44 +44,60 @@ public class CoreLoggingFilter extends OncePerRequestFilter implements Ordered {
       }
     }
 
+    Throwable unhandledException = null;
     try {
-      // Setup metadados iniciais no MDC
+
       MDC.put("log_type", "in_request");
       MDC.put("span.kind", "SERVER");
       MDC.put("http.method", request.getMethod());
       MDC.put("http.url", request.getRequestURI());
 
-      // Continua a cadeia de filtros e chega no Controller
       filterChain.doFilter(requestToUse, responseToUse);
 
+    } catch (Throwable t) {
+      unhandledException = t;
+      throw t;
     } finally {
-      // O finally garante que sempre vamos logar a saída, mesmo que estoure uma Exception bruta
+
       long duration = System.currentTimeMillis() - startTime;
       int status = responseToUse.getStatus();
+
+      if (unhandledException != null) {
+
+        status = 500;
+        java.io.StringWriter sw = new java.io.StringWriter();
+        unhandledException.printStackTrace(new java.io.PrintWriter(sw));
+        MDC.put("error.stacktrace", sw.toString());
+      }
 
       MDC.put("http.status_code", String.valueOf(status));
       MDC.put("http.duration_ms", String.valueOf(duration));
 
-      // Extrai e loga payload se estiver habilitado
       if (wrapPayload) {
         logPayload(
             (ContentCachingRequestWrapper) requestToUse,
             (ContentCachingResponseWrapper) responseToUse);
 
-        // IMPORTANTÍSSIMO: Copiar o body cachead de volta para o output stream
         ((ContentCachingResponseWrapper) responseToUse).copyBodyToResponse();
       }
 
-      // A chamada de log única que emitirá o JSON
-      log.info("Processed incoming request {} {}", request.getMethod(), request.getRequestURI());
+      if (unhandledException != null) {
+        log.error(
+            "Failed processing incoming request {} {}",
+            request.getMethod(),
+            request.getRequestURI(),
+            unhandledException);
+      } else {
+        log.info("Processed incoming request {} {}", request.getMethod(), request.getRequestURI());
+      }
 
-      // Limpa o MDC para não sujar threads reutilizadas (Thread Pool)
       MDC.remove("log_type");
       MDC.remove("span.kind");
       MDC.remove("http.method");
       MDC.remove("http.url");
       MDC.remove("http.status_code");
       MDC.remove("http.duration_ms");
+      MDC.remove("error.stacktrace");
       MDC.remove("http.request.body");
       MDC.remove("http.response.body");
     }
@@ -94,8 +105,7 @@ public class CoreLoggingFilter extends OncePerRequestFilter implements Ordered {
 
   private void logPayload(
       ContentCachingRequestWrapper request, ContentCachingResponseWrapper response) {
-    // Extrai o Payload. (Neste ponto da implementação, conectaremos a ofuscação LGPD via
-    // Regex/Jackson)
+
     byte[] requestBody = request.getContentAsByteArray();
     if (requestBody.length > 0) {
       MDC.put("http.request.body", new String(requestBody));
@@ -109,7 +119,7 @@ public class CoreLoggingFilter extends OncePerRequestFilter implements Ordered {
 
   @Override
   public int getOrder() {
-    // Executa logo após o Spring Security, mas antes do DispatcherServlet
+
     return Ordered.LOWEST_PRECEDENCE - 10;
   }
 }

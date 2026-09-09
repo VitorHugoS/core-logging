@@ -57,6 +57,7 @@
             </plugin>
 
             <!-- Jacoco para Cobertura de Código -->
+
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -101,7 +102,7 @@
             <plugin>
                 <groupId>org.pitest</groupId>
                 <artifactId>pitest-maven</artifactId>
-                <version>1.16.1</version>
+                <version>1.30.0</version>
                 <dependencies>
                     <dependency>
                         <groupId>org.pitest</groupId>
@@ -110,6 +111,11 @@
                     </dependency>
                 </dependencies>
                 <configuration>
+                    <verbose>true</verbose>
+                    <outputFormats>
+                        <value>HTML</value>
+                        <value>XML</value>
+                    </outputFormats>
                     <targetClasses>
                         <param>com.corelogging.*</param>
                     </targetClasses>
@@ -120,7 +126,19 @@
                         <mutator>DEFAULTS</mutator>
                     </mutators>
                     <mutationThreshold>100</mutationThreshold> <!-- Zero mutantes sobreviventes (100%) -->
+                    <jvmArgs>
+                        <value>-XX:+EnableDynamicAgentLoading</value>
+                    </jvmArgs>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>pitest</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>mutationCoverage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
@@ -136,6 +154,21 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- OpenFeign para integração de interceptors de clientes HTTP declarativos -->
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-core</artifactId>
+            <version>13.5</version> <!-- A versão gerenciada geralmente vem do Spring Cloud, mas hardcode aqui ajuda no teste -->
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Spring Kafka para integração de interceptors de mensageria -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
             <scope>provided</scope>
         </dependency>
 
@@ -156,6 +189,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
