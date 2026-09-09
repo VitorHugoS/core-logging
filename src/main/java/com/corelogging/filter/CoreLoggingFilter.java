@@ -41,7 +41,8 @@ public class CoreLoggingFilter extends OncePerRequestFilter implements Ordered {
     // Fazemos o cache do stream para poder ler o body sem consumir o fluxo do InputStream
     if (wrapPayload) {
       if (!(request instanceof ContentCachingRequestWrapper)) {
-        requestToUse = new ContentCachingRequestWrapper(request);
+        requestToUse =
+            new ContentCachingRequestWrapper(request, properties.getPayload().getMaxCacheSize());
       }
       if (!(response instanceof ContentCachingResponseWrapper)) {
         responseToUse = new ContentCachingResponseWrapper(response);

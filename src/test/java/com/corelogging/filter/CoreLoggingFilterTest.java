@@ -100,7 +100,8 @@ class CoreLoggingFilterTest {
   void shouldWrapOnlyIfNotAlreadyWrapped() throws ServletException, IOException {
     properties.getPayload().setEnabled(true);
 
-    ContentCachingRequestWrapper wrappedReq = new ContentCachingRequestWrapper(request);
+    ContentCachingRequestWrapper wrappedReq =
+        new ContentCachingRequestWrapper(request, properties.getPayload().getMaxCacheSize());
     ContentCachingResponseWrapper wrappedRes = new ContentCachingResponseWrapper(response);
 
     request.setMethod("GET");
