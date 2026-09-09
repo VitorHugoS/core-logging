@@ -11,13 +11,13 @@ import org.springframework.context.annotation.Bean;
 @ConditionalOnWebApplication // Somente carrega este filtro se a aplicação for Web (REST)
 public class CoreLoggingAutoConfiguration {
 
-    @Bean
-    public CoreLoggingFilter coreLoggingFilter(CoreLoggingProperties properties) {
-        return new CoreLoggingFilter(properties);
-    }
+  @Bean
+  public CoreLoggingFilter coreLoggingFilter(CoreLoggingProperties properties) {
+    return new CoreLoggingFilter(properties);
+  }
 
-    @Bean
-    public com.corelogging.filter.CoreLoggingClientInterceptor coreLoggingClientInterceptor() {
-        return new com.corelogging.filter.CoreLoggingClientInterceptor();
-    }
+  @Bean
+  public com.corelogging.filter.CoreLoggingClientInterceptor coreLoggingClientInterceptor() {
+    return new com.corelogging.filter.CoreLoggingClientInterceptor();
+  }
 }
