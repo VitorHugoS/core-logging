@@ -4,27 +4,32 @@ import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
+import tools.jackson.databind.ObjectMapper;
 
 public class CoreLogger {
 
-  private CoreLogger() {
-    // Utility class
+  private final Logger logger;
+  private final ObjectMapper objectMapper;
+
+  public CoreLogger(Logger logger, ObjectMapper objectMapper) {
+    this.logger = logger;
+    this.objectMapper = objectMapper;
   }
 
-  public static LogBuilder info(Logger logger, String format, Object... args) {
-    return new LogBuilder(logger, LogLevel.INFO, format, args);
+  public LogBuilder info(String format, Object... args) {
+    return new LogBuilder(logger, LogLevel.INFO, format, args, objectMapper);
   }
 
-  public static LogBuilder error(Logger logger, String format, Object... args) {
-    return new LogBuilder(logger, LogLevel.ERROR, format, args);
+  public LogBuilder error(String format, Object... args) {
+    return new LogBuilder(logger, LogLevel.ERROR, format, args, objectMapper);
   }
 
-  public static LogBuilder warn(Logger logger, String format, Object... args) {
-    return new LogBuilder(logger, LogLevel.WARN, format, args);
+  public LogBuilder warn(String format, Object... args) {
+    return new LogBuilder(logger, LogLevel.WARN, format, args, objectMapper);
   }
 
-  public static LogBuilder debug(Logger logger, String format, Object... args) {
-    return new LogBuilder(logger, LogLevel.DEBUG, format, args);
+  public LogBuilder debug(String format, Object... args) {
+    return new LogBuilder(logger, LogLevel.DEBUG, format, args, objectMapper);
   }
 
   public enum LogLevel {
@@ -39,17 +44,17 @@ public class CoreLogger {
     private final LogLevel level;
     private final String format;
     private final Object[] args;
+    private final ObjectMapper objectMapper;
     private final Map<String, String> customFields = new HashMap<>();
 
-    LogBuilder(Logger logger, LogLevel level, String format, Object[] args) {
+    LogBuilder(
+        Logger logger, LogLevel level, String format, Object[] args, ObjectMapper objectMapper) {
       this.logger = logger;
       this.level = level;
       this.format = format;
       this.args = args;
+      this.objectMapper = objectMapper;
     }
-
-    private static final tools.jackson.databind.ObjectMapper OBJECT_MAPPER =
-        new tools.jackson.databind.ObjectMapper();
 
     public LogBuilder with(String key, String value) {
       if (key != null && value != null) {
@@ -69,7 +74,7 @@ public class CoreLogger {
       if (payload != null) {
         try {
           Map<String, Object> map =
-              OBJECT_MAPPER.convertValue(
+              objectMapper.convertValue(
                   payload, new tools.jackson.core.type.TypeReference<Map<String, Object>>() {});
           if (map != null) {
             map.forEach(
@@ -91,7 +96,7 @@ public class CoreLogger {
         return (String) value;
       }
       try {
-        return OBJECT_MAPPER.writeValueAsString(value);
+        return objectMapper.writeValueAsString(value);
       } catch (Exception e) {
         return String.valueOf(value);
       }

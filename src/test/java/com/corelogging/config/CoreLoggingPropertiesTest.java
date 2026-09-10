@@ -13,6 +13,7 @@ class CoreLoggingPropertiesTest {
     assertThat(properties.getPayload()).isNotNull();
     assertThat(properties.getPayload().isEnabled()).isFalse();
     assertThat(properties.getPayload().getMaxCacheSize()).isEqualTo(1048576);
+    assertThat(properties.getPayload().getMaxLength()).isEqualTo(10000);
     assertThat(properties.getPayload().getObfuscateFields())
         .containsExactly("password", "token", "cpf", "document");
   }
@@ -24,11 +25,13 @@ class CoreLoggingPropertiesTest {
 
     payload.setEnabled(true);
     payload.setMaxCacheSize(2048);
+    payload.setMaxLength(500);
     payload.setObfuscateFields(List.of("secret"));
     properties.setPayload(payload);
 
     assertThat(properties.getPayload().isEnabled()).isTrue();
     assertThat(properties.getPayload().getMaxCacheSize()).isEqualTo(2048);
+    assertThat(properties.getPayload().getMaxLength()).isEqualTo(500);
     assertThat(properties.getPayload().getObfuscateFields()).containsExactly("secret");
   }
 }

@@ -105,6 +105,7 @@ class CoreLoggingClientInterceptorTest {
     ch.qos.logback.classic.spi.ILoggingEvent event = TestAppender.events.get(0);
     assertThat(event.getMDCPropertyMap().get("error.stacktrace")).contains("Timeout");
     assertThat(event.getLevel().toString()).isEqualTo("ERROR");
+    assertThat(event.getFormattedMessage()).startsWith("Failed outgoing request");
   }
 
   @Test

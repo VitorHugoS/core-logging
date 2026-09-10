@@ -13,18 +13,22 @@ import org.slf4j.MDC;
 class CoreLoggerTest {
 
   private static final Logger log = LoggerFactory.getLogger(CoreLoggerTest.class);
+  private CoreLogger coreLogger;
 
   @BeforeEach
   void setUp() {
     MDC.clear();
     TestAppender.clear();
+    tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
+    coreLogger = new CoreLogger(log, mapper);
   }
 
   @Test
   void shouldLogInfoWithCustomFieldsAndRestoreMdc() {
     MDC.put("log_type", "in_request");
 
-    CoreLogger.info(log, "Usuario {} criado", "joao")
+    coreLogger
+        .info("Usuario {} criado", "joao")
         .with("business.user_id", 123)
         .with("business.status", "ACTIVE")
         .with("business.ignore_null", (String) null)
@@ -50,7 +54,7 @@ class CoreLoggerTest {
   void shouldLogErrorWithException() {
     RuntimeException exception = new RuntimeException("DB Error");
 
-    CoreLogger.error(log, "Falha ao salvar", exception).with("db.table", "users").log();
+    coreLogger.error("Falha ao salvar", exception).with("db.table", "users").log();
 
     assertThat(TestAppender.events).isNotEmpty();
     ch.qos.logback.classic.spi.ILoggingEvent event = TestAppender.events.get(0);
@@ -67,8 +71,8 @@ class CoreLoggerTest {
 
   @Test
   void shouldLogWarnAndDebugWithoutArgs() {
-    CoreLogger.warn(log, "Aviso simples").log();
-    CoreLogger.debug(log, "Debug simples").log();
+    coreLogger.warn("Aviso simples").log();
+    coreLogger.debug("Debug simples").log();
 
     assertThat(TestAppender.events).hasSize(2);
 
@@ -89,10 +93,13 @@ class CoreLoggerTest {
     org.mockito.Mockito.when(mockLogger.isWarnEnabled()).thenReturn(false);
     org.mockito.Mockito.when(mockLogger.isDebugEnabled()).thenReturn(false);
 
-    CoreLogger.info(mockLogger, "test").log();
-    CoreLogger.error(mockLogger, "test").log();
-    CoreLogger.warn(mockLogger, "test").log();
-    CoreLogger.debug(mockLogger, "test").log();
+    CoreLogger mockCoreLogger =
+        new CoreLogger(mockLogger, new tools.jackson.databind.ObjectMapper());
+
+    mockCoreLogger.info("test").log();
+    mockCoreLogger.error("test").log();
+    mockCoreLogger.warn("test").log();
+    mockCoreLogger.debug("test").log();
 
     org.mockito.Mockito.verify(mockLogger, org.mockito.Mockito.never())
         .info(org.mockito.ArgumentMatchers.anyString());
@@ -106,10 +113,10 @@ class CoreLoggerTest {
 
   @Test
   void shouldLogAllLevelsWithArgs() {
-    CoreLogger.info(log, "Info {}", "arg").log();
-    CoreLogger.error(log, "Erro {}", "arg").log();
-    CoreLogger.warn(log, "Aviso {}", "arg").log();
-    CoreLogger.debug(log, "Debug {}", "arg").log();
+    coreLogger.info("Info {}", "arg").log();
+    coreLogger.error("Erro {}", "arg").log();
+    coreLogger.warn("Aviso {}", "arg").log();
+    coreLogger.debug("Debug {}", "arg").log();
 
     assertThat(TestAppender.events).hasSize(4);
     assertThat(TestAppender.events.get(0).getFormattedMessage()).isEqualTo("Info arg");
@@ -121,10 +128,10 @@ class CoreLoggerTest {
   @Test
   void shouldLogAllLevelsWithoutArgs() {
     TestAppender.clear();
-    CoreLogger.info(log, "Info sem args").log();
-    CoreLogger.error(log, "Erro sem args").log();
-    CoreLogger.warn(log, "Aviso sem args").log();
-    CoreLogger.debug(log, "Debug sem args").log();
+    coreLogger.info("Info sem args").log();
+    coreLogger.error("Erro sem args").log();
+    coreLogger.warn("Aviso sem args").log();
+    coreLogger.debug("Debug sem args").log();
 
     assertThat(TestAppender.events).hasSize(4);
     assertThat(TestAppender.events.get(0).getFormattedMessage()).isEqualTo("Info sem args");
@@ -136,7 +143,7 @@ class CoreLoggerTest {
   @Test
   void shouldLogWithNullArgs() {
     TestAppender.clear();
-    CoreLogger.info(log, "Null args", (Object[]) null).log();
+    coreLogger.info("Null args", (Object[]) null).log();
 
     assertThat(TestAppender.events).hasSize(1);
     assertThat(TestAppender.events.get(0).getFormattedMessage()).isEqualTo("Null args");
@@ -166,7 +173,8 @@ class CoreLoggerTest {
           }
         };
 
-    CoreLogger.info(log, "Test Object")
+    coreLogger
+        .info("Test Object")
         .with("business.user", payload) // As JSON string
         .with(payload) // As flattened keys
         .log();
@@ -193,7 +201,8 @@ class CoreLoggerTest {
     TestAppender.clear();
     FailBean failBean = new FailBean();
 
-    CoreLogger.info(log, "Test Fallback")
+    coreLogger
+        .info("Test Fallback")
         .with("business.fail", failBean)
         .with(failBean) // convertValue will fail
         .log();
@@ -203,5 +212,12 @@ class CoreLoggerTest {
     Map<String, String> mdc = event.getMDCPropertyMap();
 
     assertThat(mdc.get("business.fail")).contains("FailBean");
+  }
+
+  @Test
+  void enumCoverage() {
+    CoreLogger.LogLevel[] values = CoreLogger.LogLevel.values();
+    assertThat(values).contains(CoreLogger.LogLevel.INFO);
+    assertThat(CoreLogger.LogLevel.valueOf("INFO")).isEqualTo(CoreLogger.LogLevel.INFO);
   }
 }

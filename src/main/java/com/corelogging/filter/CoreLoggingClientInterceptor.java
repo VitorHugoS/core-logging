@@ -3,7 +3,6 @@ package com.corelogging.filter;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
@@ -16,63 +15,33 @@ public class CoreLoggingClientInterceptor implements ClientHttpRequestIntercepto
   @Override
   public ClientHttpResponse intercept(
       HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
-    long startTime = System.currentTimeMillis();
 
-    String previousLogType = MDC.get("log_type");
-    String previousSpanKind = MDC.get("span.kind");
-
-    Throwable unhandledException = null;
-    ClientHttpResponse response = null;
-    try {
-      MDC.put("log_type", "out_request");
-      MDC.put("span.kind", "CLIENT");
+    try (var scope = com.corelogging.scope.ObservabilityScope.start(log, "out_request", "CLIENT")) {
       if (request.getMethod() != null) {
-        MDC.put("http.method", request.getMethod().name());
+        scope.tag("http.method", request.getMethod().name());
       }
-      MDC.put("http.url", request.getURI().toString());
+      scope.tag("http.url", request.getURI().toString());
 
-      response = execution.execute(request, body);
-      return response;
-    } catch (Throwable t) {
-      unhandledException = t;
-      throw t;
-    } finally {
-      long duration = System.currentTimeMillis() - startTime;
-      MDC.put("http.duration_ms", String.valueOf(duration));
+      ClientHttpResponse response = null;
+      try {
+        response = execution.execute(request, body);
+        return response;
+      } catch (Throwable t) {
+        scope.recordError(t);
+        throw t;
+      } finally {
+        scope.computeDurationAs("http.duration_ms");
+        if (response != null) {
+          scope.tag("http.status_code", String.valueOf(response.getStatusCode().value()));
+        }
 
-      if (response != null) {
-        MDC.put("http.status_code", String.valueOf(response.getStatusCode().value()));
+        if (scope.hasError()) {
+          scope.closeWith("Failed outgoing request {} {}", request.getMethod(), request.getURI());
+        } else {
+          scope.closeWith(
+              "Processed outgoing request {} {}", request.getMethod(), request.getURI());
+        }
       }
-
-      if (unhandledException != null) {
-        java.io.StringWriter sw = new java.io.StringWriter();
-        unhandledException.printStackTrace(new java.io.PrintWriter(sw));
-        MDC.put("error.stacktrace", sw.toString());
-        log.error(
-            "Failed outgoing request {} {}",
-            request.getMethod(),
-            request.getURI(),
-            unhandledException);
-      } else {
-        log.info("Processed outgoing request {} {}", request.getMethod(), request.getURI());
-      }
-
-      if (previousLogType != null) {
-        MDC.put("log_type", previousLogType);
-      } else {
-        MDC.remove("log_type");
-      }
-
-      if (previousSpanKind != null) {
-        MDC.put("span.kind", previousSpanKind);
-      } else {
-        MDC.remove("span.kind");
-      }
-
-      MDC.remove("http.method");
-      MDC.remove("http.url");
-      MDC.remove("http.status_code");
-      MDC.remove("http.duration_ms");
     }
   }
 }

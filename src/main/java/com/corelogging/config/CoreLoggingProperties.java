@@ -19,7 +19,16 @@ public class CoreLoggingProperties {
   public static class Payload {
     private boolean enabled = false;
     private int maxCacheSize = 1048576;
+    private int maxLength = 10000;
     private List<String> obfuscateFields = List.of("password", "token", "cpf", "document");
+
+    public int getMaxLength() {
+      return maxLength;
+    }
+
+    public void setMaxLength(int maxLength) {
+      this.maxLength = maxLength;
+    }
 
     public int getMaxCacheSize() {
       return maxCacheSize;

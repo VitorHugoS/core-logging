@@ -53,12 +53,6 @@ class CoreLoggingKafkaConsumerInterceptorTest {
     assertThat(MDC.get("messaging.destination")).isNull();
     assertThat(MDC.get("messaging.duration_ms")).isNull();
     assertThat(MDC.get("error.stacktrace")).isNull();
-
-    TestAppender.clear();
-    interceptor.success(record, consumer);
-    assertThat(TestAppender.events).isNotEmpty();
-    ch.qos.logback.classic.spi.ILoggingEvent event2 = TestAppender.events.get(0);
-    assertThat(event2.getMDCPropertyMap().get("messaging.duration_ms")).isNull();
   }
 
   @Test
@@ -79,13 +73,14 @@ class CoreLoggingKafkaConsumerInterceptorTest {
   }
 
   @Test
-  void shouldLogAndPopulateMdcOnFailureWithoutIntercept() {
-    RuntimeException exception = new RuntimeException("Consumer error early");
-    interceptor.failure(record, exception, consumer);
+  void shouldCleanUpInAfterRecordEvenIfSuccessOrFailureNotCalled() {
+    interceptor.intercept(record, consumer);
 
-    assertThat(TestAppender.events).isNotEmpty();
-    ch.qos.logback.classic.spi.ILoggingEvent event = TestAppender.events.get(0);
-    assertThat(event.getMDCPropertyMap().get("messaging.duration_ms")).isNull();
-    assertThat(event.getMDCPropertyMap().get("error.stacktrace")).contains("Consumer error early");
+    interceptor.afterRecord(record, consumer);
+    assertThat(MDC.get("log_type")).isNull();
+
+    TestAppender.clear();
+    interceptor.success(record, consumer);
+    assertThat(TestAppender.events).isEmpty();
   }
 }

@@ -1,1 +1,2 @@
 com.corelogging.config.CoreLoggingAutoConfiguration
+com.corelogging.config.CoreLoggingKafkaAutoConfiguration

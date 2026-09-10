@@ -149,6 +149,8 @@ class CoreLoggingFilterTest {
     assertThat(event.getMDCPropertyMap().get("http.status_code")).isEqualTo("500");
     assertThat(event.getMDCPropertyMap().get("error.stacktrace")).contains("Unexpected error");
     assertThat(event.getLevel().toString()).isEqualTo("ERROR");
+    assertThat(event.getFormattedMessage()).startsWith("Failed processing incoming request");
+    assertThat(MDC.get("log_type")).isNull();
   }
 
   @Test
@@ -162,5 +164,28 @@ class CoreLoggingFilterTest {
     filter.doFilterInternal(wrappedReq, wrappedRes, filterChain);
 
     verify(filterChain).doFilter(wrappedReq, wrappedRes);
+  }
+
+  @Test
+  void shouldNotOverwriteErrorStatusIfAlreadySet() throws ServletException, IOException {
+    RuntimeException exception = new RuntimeException("Unexpected error");
+    doAnswer(
+            invocation -> {
+              response.setStatus(400);
+              throw exception;
+            })
+        .when(filterChain)
+        .doFilter(any(), any());
+
+    try {
+      filter.doFilterInternal(request, response, filterChain);
+    } catch (RuntimeException e) {
+      // expected
+    }
+
+    assertThat(TestAppender.events).isNotEmpty();
+    ch.qos.logback.classic.spi.ILoggingEvent event = TestAppender.events.get(0);
+    assertThat(event.getMDCPropertyMap().get("http.status_code")).isEqualTo("400");
+    assertThat(MDC.get("log_type")).isNull();
   }
 }
