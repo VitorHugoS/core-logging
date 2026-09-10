@@ -49,6 +49,7 @@ public class CoreLoggingAutoConfiguration {
     };
   }
 
+  @Bean
   public CoreLoggingClientInterceptor coreLoggingClientInterceptor(
       CoreLoggingProperties properties) {
     return new CoreLoggingClientInterceptor(properties);
