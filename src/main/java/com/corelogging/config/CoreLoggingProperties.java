@@ -8,6 +8,17 @@ public class CoreLoggingProperties {
 
   private Payload payload = new Payload();
 
+  /** HTTP header and MDC key name for correlation ID */
+  private String correlationIdHeader = "x-correlation-id";
+
+  public String getCorrelationIdHeader() {
+    return correlationIdHeader;
+  }
+
+  public void setCorrelationIdHeader(String correlationIdHeader) {
+    this.correlationIdHeader = correlationIdHeader;
+  }
+
   public Payload getPayload() {
     return payload;
   }

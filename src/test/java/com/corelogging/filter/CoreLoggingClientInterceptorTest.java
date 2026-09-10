@@ -12,6 +12,7 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
@@ -27,13 +28,36 @@ class CoreLoggingClientInterceptorTest {
 
   @BeforeEach
   void setUp() {
-    interceptor = new CoreLoggingClientInterceptor();
+    interceptor =
+        new CoreLoggingClientInterceptor(new com.corelogging.config.CoreLoggingProperties());
     request = mock(HttpRequest.class);
+    org.mockito.BDDMockito.given(request.getHeaders()).willReturn(new HttpHeaders());
+
     body = "request body".getBytes();
     execution = mock(ClientHttpRequestExecution.class);
     response = mock(ClientHttpResponse.class);
     MDC.clear();
     TestAppender.clear();
+  }
+
+  @Test
+  void shouldAddCorrelationIdIfPresent() throws IOException {
+    MDC.put("correlation_id", "12345");
+    org.mockito.BDDMockito.given(request.getMethod())
+        .willReturn(org.springframework.http.HttpMethod.GET);
+    org.mockito.BDDMockito.given(request.getURI())
+        .willReturn(java.net.URI.create("http://api.exemplo.com/test"));
+    org.mockito.BDDMockito.given(
+            execution.execute(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .willReturn(response);
+
+    org.mockito.BDDMockito.given(response.getStatusCode())
+        .willReturn(org.springframework.http.HttpStatus.OK);
+
+    interceptor.intercept(request, body, execution);
+
+    assertThat(request.getHeaders().get("x-correlation-id")).containsExactly("12345");
   }
 
   @Test
@@ -51,6 +75,9 @@ class CoreLoggingClientInterceptorTest {
               mdcDuringRequest.put("span.kind", MDC.get("span.kind"));
               return response;
             });
+
+    org.mockito.BDDMockito.given(response.getStatusCode())
+        .willReturn(org.springframework.http.HttpStatus.OK);
 
     ClientHttpResponse actualResponse = interceptor.intercept(request, body, execution);
 
@@ -82,6 +109,9 @@ class CoreLoggingClientInterceptorTest {
               return response;
             });
 
+    org.mockito.BDDMockito.given(response.getStatusCode())
+        .willReturn(org.springframework.http.HttpStatus.OK);
+
     interceptor.intercept(request, body, execution);
 
     assertThat(mdcDuringRequest.get("log_type")).isEqualTo("out_request");
@@ -94,6 +124,9 @@ class CoreLoggingClientInterceptorTest {
     given(execution.execute(any(), any())).willThrow(new IOException("Timeout"));
 
     try {
+      org.mockito.BDDMockito.given(response.getStatusCode())
+          .willReturn(org.springframework.http.HttpStatus.OK);
+
       interceptor.intercept(request, body, execution);
     } catch (IOException e) {
 
@@ -117,6 +150,9 @@ class CoreLoggingClientInterceptorTest {
     given(request.getURI()).willReturn(URI.create("http://api.exemplo.com/test"));
     given(response.getStatusCode()).willReturn(org.springframework.http.HttpStatus.OK);
     given(execution.execute(any(), any())).willReturn(response);
+
+    org.mockito.BDDMockito.given(response.getStatusCode())
+        .willReturn(org.springframework.http.HttpStatus.OK);
 
     interceptor.intercept(request, body, execution);
 

@@ -1,7 +1,10 @@
 package com.corelogging.filter;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.Header;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.listener.RecordInterceptor;
@@ -18,6 +21,16 @@ public class CoreLoggingKafkaConsumerInterceptor<K, V> implements RecordIntercep
     var scope = com.corelogging.scope.ObservabilityScope.start(log, "in_message", "CONSUMER");
     scope.tag("messaging.system", "kafka");
     scope.tag("messaging.destination", record.topic());
+
+    Header correlationHeader = record.headers().lastHeader("correlation_id");
+    String correlationId;
+    if (correlationHeader != null && correlationHeader.value() != null) {
+      correlationId = new String(correlationHeader.value(), StandardCharsets.UTF_8);
+    } else {
+      correlationId = UUID.randomUUID().toString();
+    }
+    scope.tag("correlation_id", correlationId);
+
     scopeThreadLocal.set(scope);
     return record;
   }

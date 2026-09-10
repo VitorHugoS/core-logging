@@ -42,6 +42,35 @@ class CoreLoggingFilterTest {
   }
 
   @Test
+  void shouldExtractCorrelationIdFromHeaderAndSetOnResponse() throws Exception {
+    request.setMethod("GET");
+    request.setRequestURI("/test");
+    request.addHeader("x-correlation-id", "my-custom-id");
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getHeader("x-correlation-id")).isEqualTo("my-custom-id");
+    assertThat(TestAppender.events).isNotEmpty();
+    assertThat(TestAppender.events.get(0).getMDCPropertyMap().get("correlation_id"))
+        .isEqualTo("my-custom-id");
+  }
+
+  @Test
+  void shouldGenerateCorrelationIdWhenHeaderIsEmptyAndSetOnResponse() throws Exception {
+    request.setMethod("GET");
+    request.setRequestURI("/test");
+    request.addHeader("x-correlation-id", "   ");
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getHeader("x-correlation-id")).isNotNull().isNotBlank();
+    assertThat(TestAppender.events).isNotEmpty();
+    assertThat(TestAppender.events.get(0).getMDCPropertyMap().get("correlation_id"))
+        .isNotNull()
+        .isNotEqualTo("   ");
+  }
+
+  @Test
   void shouldLogAndPopulateMdcForIncomingRequest() throws ServletException, IOException {
 
     final Map<String, String>[] mdcDuringRequest = new Map[1];
@@ -148,6 +177,8 @@ class CoreLoggingFilterTest {
     ch.qos.logback.classic.spi.ILoggingEvent event = TestAppender.events.get(0);
     assertThat(event.getMDCPropertyMap().get("http.status_code")).isEqualTo("500");
     assertThat(event.getMDCPropertyMap().get("error.stacktrace")).contains("Unexpected error");
+    assertThat(event.getMDCPropertyMap().get("http.duration_ms")).isNotNull();
+
     assertThat(event.getLevel().toString()).isEqualTo("ERROR");
     assertThat(event.getFormattedMessage()).startsWith("Failed processing incoming request");
     assertThat(MDC.get("log_type")).isNull();

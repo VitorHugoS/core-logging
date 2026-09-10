@@ -4,12 +4,14 @@ import com.corelogging.CoreLoggerFactory;
 import com.corelogging.filter.CoreLoggingClientInterceptor;
 import com.corelogging.filter.CoreLoggingFeignCapability;
 import com.corelogging.filter.CoreLoggingFilter;
+import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.task.TaskDecorator;
 
 @AutoConfiguration
 @EnableConfigurationProperties(CoreLoggingProperties.class)
@@ -28,8 +30,28 @@ public class CoreLoggingAutoConfiguration {
   }
 
   @Bean
-  public CoreLoggingClientInterceptor coreLoggingClientInterceptor() {
-    return new CoreLoggingClientInterceptor();
+  @ConditionalOnMissingBean
+  public TaskDecorator mdcTaskDecorator() {
+    return runnable -> {
+      var contextMap = MDC.getCopyOfContextMap();
+      return () -> {
+        try {
+          if (contextMap != null) {
+            MDC.setContextMap(contextMap);
+          } else {
+            MDC.clear();
+          }
+          runnable.run();
+        } finally {
+          MDC.clear();
+        }
+      };
+    };
+  }
+
+  public CoreLoggingClientInterceptor coreLoggingClientInterceptor(
+      CoreLoggingProperties properties) {
+    return new CoreLoggingClientInterceptor(properties);
   }
 
   @ConditionalOnClass(name = "feign.Capability")
@@ -37,6 +59,13 @@ public class CoreLoggingAutoConfiguration {
     @Bean
     public CoreLoggingFeignCapability coreLoggingFeignCapability() {
       return new CoreLoggingFeignCapability();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public com.corelogging.filter.CoreLoggingFeignRequestInterceptor
+        coreLoggingFeignRequestInterceptor(CoreLoggingProperties properties) {
+      return new com.corelogging.filter.CoreLoggingFeignRequestInterceptor(properties);
     }
   }
 }

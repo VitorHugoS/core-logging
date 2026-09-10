@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.nio.charset.StandardCharsets;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
@@ -23,8 +25,23 @@ class CoreLoggingKafkaConsumerInterceptorTest {
     consumer = mock(Consumer.class);
     record = mock(ConsumerRecord.class);
     when(record.topic()).thenReturn("test-topic");
+    when(record.headers()).thenReturn(new RecordHeaders());
+
     MDC.clear();
     TestAppender.clear();
+  }
+
+  @Test
+  void shouldExtractCorrelationIdIfPresent() {
+    RecordHeaders headers = new RecordHeaders();
+    headers.add("correlation_id", "12345".getBytes(StandardCharsets.UTF_8));
+    when(record.headers()).thenReturn(headers);
+    when(record.topic()).thenReturn("test-topic");
+    when(record.value()).thenReturn("test-payload");
+
+    interceptor.intercept(record, consumer);
+
+    assertThat(MDC.get("correlation_id")).isEqualTo("12345");
   }
 
   @Test

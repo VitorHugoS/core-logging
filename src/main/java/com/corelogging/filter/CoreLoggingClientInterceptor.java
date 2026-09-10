@@ -1,8 +1,10 @@
 package com.corelogging.filter;
 
+import com.corelogging.config.CoreLoggingProperties;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
@@ -11,6 +13,11 @@ import org.springframework.http.client.ClientHttpResponse;
 public class CoreLoggingClientInterceptor implements ClientHttpRequestInterceptor {
 
   private static final Logger log = LoggerFactory.getLogger(CoreLoggingClientInterceptor.class);
+  private final CoreLoggingProperties properties;
+
+  public CoreLoggingClientInterceptor(CoreLoggingProperties properties) {
+    this.properties = properties;
+  }
 
   @Override
   public ClientHttpResponse intercept(
@@ -21,6 +28,11 @@ public class CoreLoggingClientInterceptor implements ClientHttpRequestIntercepto
         scope.tag("http.method", request.getMethod().name());
       }
       scope.tag("http.url", request.getURI().toString());
+
+      String correlationId = MDC.get("correlation_id");
+      if (correlationId != null) {
+        request.getHeaders().add(properties.getCorrelationIdHeader(), correlationId);
+      }
 
       ClientHttpResponse response = null;
       try {
