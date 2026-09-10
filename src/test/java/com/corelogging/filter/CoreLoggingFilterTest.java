@@ -73,11 +73,12 @@ class CoreLoggingFilterTest {
   @Test
   void shouldLogAndPopulateMdcForIncomingRequest() throws ServletException, IOException {
 
-    final Map<String, String>[] mdcDuringRequest = new Map[1];
+    final java.util.concurrent.atomic.AtomicReference<Map<String, String>> mdcDuringRequest =
+        new java.util.concurrent.atomic.AtomicReference<>();
 
     doAnswer(
             invocation -> {
-              mdcDuringRequest[0] = MDC.getCopyOfContextMap();
+              mdcDuringRequest.set(MDC.getCopyOfContextMap());
               return null;
             })
         .when(filterChain)
@@ -85,8 +86,8 @@ class CoreLoggingFilterTest {
 
     filter.doFilter(request, response, filterChain);
 
-    assertThat(mdcDuringRequest[0].get("log_type")).isEqualTo("in_request");
-    assertThat(mdcDuringRequest[0].get("span.kind")).isEqualTo("SERVER");
+    assertThat(mdcDuringRequest.get().get("log_type")).isEqualTo("in_request");
+    assertThat(mdcDuringRequest.get().get("span.kind")).isEqualTo("SERVER");
 
     assertThat(MDC.get("log_type")).isNull();
 

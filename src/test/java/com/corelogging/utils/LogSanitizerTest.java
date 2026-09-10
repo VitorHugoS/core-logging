@@ -32,8 +32,7 @@ class LogSanitizerTest {
 
     LogSanitizer.sanitizeMap(map, List.of("token"));
 
-    @SuppressWarnings("unchecked")
-    Map<String, Object> sanitizedNested = (Map<String, Object>) map.get("user");
+    Map<?, ?> sanitizedNested = (Map<?, ?>) map.get("user");
     assertThat(sanitizedNested.get("age")).isEqualTo(30);
     assertThat(sanitizedNested.get("token")).isEqualTo("***");
   }
@@ -50,10 +49,9 @@ class LogSanitizerTest {
 
     LogSanitizer.sanitizeMap(map, List.of("cpf"));
 
-    @SuppressWarnings("unchecked")
-    List<Object> sanitizedList = (List<Object>) map.get("documents");
-    @SuppressWarnings("unchecked")
-    Map<String, Object> sanitizedItem = (Map<String, Object>) sanitizedList.get(0);
+    List<?> sanitizedList = (List<?>) map.get("documents");
+
+    Map<?, ?> sanitizedItem = (Map<?, ?>) sanitizedList.get(0);
     assertThat(sanitizedItem.get("cpf")).isEqualTo("***");
     assertThat(sanitizedList.get(1)).isEqualTo("just-a-string");
   }

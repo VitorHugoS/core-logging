@@ -1,7 +1,6 @@
 package com.corelogging.filter;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
@@ -10,22 +9,25 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.MDC;
 
+@ExtendWith(MockitoExtension.class)
 class CoreLoggingKafkaConsumerInterceptorTest {
 
   private CoreLoggingKafkaConsumerInterceptor<Object, Object> interceptor;
-  private Consumer<Object, Object> consumer;
-  private ConsumerRecord<Object, Object> record;
+
+  @Mock private Consumer<Object, Object> consumer;
+
+  @Mock private ConsumerRecord<Object, Object> record;
 
   @BeforeEach
-  @SuppressWarnings("unchecked")
   void setUp() {
     interceptor =
         new CoreLoggingKafkaConsumerInterceptor<>(
             new com.corelogging.config.CoreLoggingProperties());
-    consumer = mock(Consumer.class);
-    record = mock(ConsumerRecord.class);
     when(record.topic()).thenReturn("test-topic");
     when(record.headers()).thenReturn(new RecordHeaders());
 
@@ -38,8 +40,6 @@ class CoreLoggingKafkaConsumerInterceptorTest {
     RecordHeaders headers = new RecordHeaders();
     headers.add("x-correlation-id", "12345".getBytes(StandardCharsets.UTF_8));
     when(record.headers()).thenReturn(headers);
-    when(record.topic()).thenReturn("test-topic");
-    when(record.value()).thenReturn("test-payload");
 
     interceptor.intercept(record, consumer);
 

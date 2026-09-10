@@ -4,8 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.corelogging.filter.CoreLoggingKafkaConsumerInterceptor;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 
+@ExtendWith(MockitoExtension.class)
 class CoreLoggingKafkaAutoConfigurationTest {
+
+  @Mock private ConcurrentKafkaListenerContainerFactory<Object, Object> factory;
 
   @Test
   void shouldRegisterBeans() {
@@ -17,12 +24,6 @@ class CoreLoggingKafkaAutoConfigurationTest {
     org.springframework.beans.factory.config.BeanPostProcessor postProcessor =
         autoConfiguration.coreLoggingKafkaContainerPostProcessor(interceptor);
     assertThat(postProcessor).isNotNull();
-
-    @SuppressWarnings("unchecked")
-    org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory<Object, Object>
-        factory =
-            org.mockito.Mockito.mock(
-                org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory.class);
 
     postProcessor.postProcessAfterInitialization(factory, "testFactory");
     org.mockito.Mockito.verify(factory).setRecordInterceptor(interceptor);
