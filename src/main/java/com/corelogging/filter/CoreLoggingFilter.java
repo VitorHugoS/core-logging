@@ -51,8 +51,16 @@ public class CoreLoggingFilter extends OncePerRequestFilter implements Ordered {
       scope.tag("http.method", request.getMethod());
       scope.tag("http.url", request.getRequestURI());
 
-      String correlationId = request.getHeader(properties.getCorrelationIdHeader());
-      if (correlationId == null || correlationId.trim().isEmpty()) {
+      String correlationId = null;
+      for (String headerName : properties.getAcceptedCorrelationIdHeaders()) {
+        String val = request.getHeader(headerName);
+        if (val != null && !val.trim().isEmpty()) {
+          correlationId = val;
+          break;
+        }
+      }
+
+      if (correlationId == null) {
         correlationId = java.util.UUID.randomUUID().toString();
       }
       scope.tag("correlation_id", correlationId);

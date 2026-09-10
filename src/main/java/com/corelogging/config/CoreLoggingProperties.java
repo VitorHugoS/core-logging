@@ -9,7 +9,19 @@ public class CoreLoggingProperties {
   private Payload payload = new Payload();
 
   /** HTTP header and MDC key name for correlation ID */
+  /** List of accepted correlation ID headers for incoming requests */
+  private List<String> acceptedCorrelationIdHeaders =
+      List.of("x-correlation-id", "x-request-id", "correlation-id", "traceparent", "b3");
+
   private String correlationIdHeader = "x-correlation-id";
+
+  public List<String> getAcceptedCorrelationIdHeaders() {
+    return acceptedCorrelationIdHeaders;
+  }
+
+  public void setAcceptedCorrelationIdHeaders(List<String> acceptedCorrelationIdHeaders) {
+    this.acceptedCorrelationIdHeaders = acceptedCorrelationIdHeaders;
+  }
 
   public String getCorrelationIdHeader() {
     return correlationIdHeader;

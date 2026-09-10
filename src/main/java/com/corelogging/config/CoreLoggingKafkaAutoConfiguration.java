@@ -14,8 +14,9 @@ import org.springframework.kafka.core.KafkaTemplate;
 public class CoreLoggingKafkaAutoConfiguration {
 
   @Bean
-  public CoreLoggingKafkaConsumerInterceptor<Object, Object> coreLoggingKafkaConsumerInterceptor() {
-    return new CoreLoggingKafkaConsumerInterceptor<>();
+  public CoreLoggingKafkaConsumerInterceptor<Object, Object> coreLoggingKafkaConsumerInterceptor(
+      CoreLoggingProperties properties) {
+    return new CoreLoggingKafkaConsumerInterceptor<>(properties);
   }
 
   @Bean

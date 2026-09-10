@@ -1,5 +1,6 @@
 package com.corelogging.filter;
 
+import com.corelogging.config.CoreLoggingProperties;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -15,6 +16,11 @@ public class CoreLoggingKafkaConsumerInterceptor<K, V> implements RecordIntercep
       LoggerFactory.getLogger(CoreLoggingKafkaConsumerInterceptor.class);
   private final ThreadLocal<com.corelogging.scope.ObservabilityScope> scopeThreadLocal =
       new ThreadLocal<>();
+  private final CoreLoggingProperties properties;
+
+  public CoreLoggingKafkaConsumerInterceptor(CoreLoggingProperties properties) {
+    this.properties = properties;
+  }
 
   @Override
   public ConsumerRecord<K, V> intercept(ConsumerRecord<K, V> record, Consumer<K, V> consumer) {
@@ -22,13 +28,22 @@ public class CoreLoggingKafkaConsumerInterceptor<K, V> implements RecordIntercep
     scope.tag("messaging.system", "kafka");
     scope.tag("messaging.destination", record.topic());
 
-    Header correlationHeader = record.headers().lastHeader("correlation_id");
-    String correlationId;
-    if (correlationHeader != null && correlationHeader.value() != null) {
-      correlationId = new String(correlationHeader.value(), StandardCharsets.UTF_8);
-    } else {
+    String correlationId = null;
+    for (String headerName : properties.getAcceptedCorrelationIdHeaders()) {
+      Header correlationHeader = record.headers().lastHeader(headerName);
+      if (correlationHeader != null && correlationHeader.value() != null) {
+        String val = new String(correlationHeader.value(), StandardCharsets.UTF_8);
+        if (!val.trim().isEmpty()) {
+          correlationId = val;
+          break;
+        }
+      }
+    }
+
+    if (correlationId == null) {
       correlationId = UUID.randomUUID().toString();
     }
+
     scope.tag("correlation_id", correlationId);
 
     scopeThreadLocal.set(scope);

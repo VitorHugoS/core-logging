@@ -11,7 +11,7 @@ class CoreLoggingKafkaAutoConfigurationTest {
   void shouldRegisterBeans() {
     CoreLoggingKafkaAutoConfiguration autoConfiguration = new CoreLoggingKafkaAutoConfiguration();
     CoreLoggingKafkaConsumerInterceptor<Object, Object> interceptor =
-        autoConfiguration.coreLoggingKafkaConsumerInterceptor();
+        autoConfiguration.coreLoggingKafkaConsumerInterceptor(new CoreLoggingProperties());
     assertThat(interceptor).isNotNull();
 
     org.springframework.beans.factory.config.BeanPostProcessor postProcessor =

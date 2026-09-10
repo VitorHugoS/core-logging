@@ -94,4 +94,23 @@ class CoreLoggingKafkaProducerInterceptorTest {
     interceptor.close();
     interceptor.configure(Collections.emptyMap());
   }
+
+  @Test
+  void shouldAddCorrelationIdHeaderIfPresentInMdc() {
+    MDC.put("correlation_id", "my-kafka-corr-id");
+    ProducerRecord<Object, Object> returned = interceptor.onSend(record);
+    assertThat(returned).isEqualTo(record);
+
+    org.apache.kafka.common.header.Header header =
+        returned.headers().lastHeader("x-correlation-id");
+    assertThat(header).isNotNull();
+    assertThat(new String(header.value(), java.nio.charset.StandardCharsets.UTF_8))
+        .isEqualTo("my-kafka-corr-id");
+  }
+
+  @Test
+  void shouldNotAddCorrelationIdHeaderIfNotPresentInMdc() {
+    ProducerRecord<Object, Object> returned = interceptor.onSend(record);
+    assertThat(returned.headers().lastHeader("x-correlation-id")).isNull();
+  }
 }

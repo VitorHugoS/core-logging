@@ -219,4 +219,18 @@ class CoreLoggingFilterTest {
     assertThat(event.getMDCPropertyMap().get("http.status_code")).isEqualTo("400");
     assertThat(MDC.get("log_type")).isNull();
   }
+
+  @Test
+  void shouldExtractCorrelationIdFromAlternativeHeaderAndSetOnResponse() throws Exception {
+    request.setMethod("GET");
+    request.setRequestURI("/test");
+    request.addHeader("x-request-id", "alternative-id-123");
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getHeader("x-correlation-id")).isEqualTo("alternative-id-123");
+    assertThat(TestAppender.events).isNotEmpty();
+    assertThat(TestAppender.events.get(0).getMDCPropertyMap().get("correlation_id"))
+        .isEqualTo("alternative-id-123");
+  }
 }

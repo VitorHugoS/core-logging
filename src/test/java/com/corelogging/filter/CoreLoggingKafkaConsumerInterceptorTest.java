@@ -21,7 +21,9 @@ class CoreLoggingKafkaConsumerInterceptorTest {
   @BeforeEach
   @SuppressWarnings("unchecked")
   void setUp() {
-    interceptor = new CoreLoggingKafkaConsumerInterceptor<>();
+    interceptor =
+        new CoreLoggingKafkaConsumerInterceptor<>(
+            new com.corelogging.config.CoreLoggingProperties());
     consumer = mock(Consumer.class);
     record = mock(ConsumerRecord.class);
     when(record.topic()).thenReturn("test-topic");
@@ -34,7 +36,7 @@ class CoreLoggingKafkaConsumerInterceptorTest {
   @Test
   void shouldExtractCorrelationIdIfPresent() {
     RecordHeaders headers = new RecordHeaders();
-    headers.add("correlation_id", "12345".getBytes(StandardCharsets.UTF_8));
+    headers.add("x-correlation-id", "12345".getBytes(StandardCharsets.UTF_8));
     when(record.headers()).thenReturn(headers);
     when(record.topic()).thenReturn("test-topic");
     when(record.value()).thenReturn("test-payload");
@@ -53,6 +55,7 @@ class CoreLoggingKafkaConsumerInterceptorTest {
     assertThat(MDC.get("span.kind")).isEqualTo("CONSUMER");
     assertThat(MDC.get("messaging.system")).isEqualTo("kafka");
     assertThat(MDC.get("messaging.destination")).isEqualTo("test-topic");
+    assertThat(MDC.get("correlation_id")).isNotNull();
 
     interceptor.success(record, consumer);
 
