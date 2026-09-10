@@ -1,29 +1,32 @@
 package com.corelogging.filter;
 
+import com.corelogging.auditor.DefaultHttpPayloadAuditor;
+import com.corelogging.auditor.HttpPayloadAuditor;
 import com.corelogging.config.CoreLoggingProperties;
+import com.corelogging.propagation.CoreLoggingPropagator;
+import com.corelogging.trace.DefaultTraceManager;
+import com.corelogging.trace.TraceContext;
+import com.corelogging.trace.TraceManager;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.util.ContentCachingRequestWrapper;
-import org.springframework.web.util.ContentCachingResponseWrapper;
 
 public class CoreLoggingFilter extends OncePerRequestFilter implements Ordered {
 
-  private static final Logger log = LoggerFactory.getLogger(CoreLoggingFilter.class);
   private final CoreLoggingProperties properties;
-  private final PayloadObfuscator obfuscator;
+  private final TraceManager traceManager;
+  private final HttpPayloadAuditor payloadAuditor;
+  private final CoreLoggingPropagator propagator;
 
   public CoreLoggingFilter(CoreLoggingProperties properties) {
     this.properties = properties;
-    this.obfuscator =
-        new PayloadObfuscator(
-            properties.getPayload().getObfuscateFields(), properties.getPayload().getMaxLength());
+    this.traceManager = new DefaultTraceManager();
+    this.payloadAuditor = new DefaultHttpPayloadAuditor(properties);
+    this.propagator = new CoreLoggingPropagator(properties);
   }
 
   @Override
@@ -31,100 +34,54 @@ public class CoreLoggingFilter extends OncePerRequestFilter implements Ordered {
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
 
-    long startTime = System.currentTimeMillis();
-    boolean wrapPayload = properties.getPayload().isEnabled();
+    try {
+      traceManager.observe(
+          "in_request",
+          "SERVER",
+          "processing incoming request " + request.getMethod() + " " + request.getRequestURI(),
+          context -> {
+            context.tag("http.method", request.getMethod());
+            context.tag("http.url", request.getRequestURI());
 
-    HttpServletRequest requestToUse = request;
-    HttpServletResponse responseToUse = response;
+            // Extract Correlation ID
+            String extractedId = propagator.extractId(request, HttpServletRequest::getHeader);
+            context.tag("correlation_id", extractedId);
 
-    if (wrapPayload) {
-      if (!(request instanceof ContentCachingRequestWrapper)) {
-        requestToUse =
-            new ContentCachingRequestWrapper(request, properties.getPayload().getMaxCacheSize());
-      }
-      if (!(response instanceof ContentCachingResponseWrapper)) {
-        responseToUse = new ContentCachingResponseWrapper(response);
-      }
-    }
+            // Inject it into response just for the client
+            String correlationId = org.slf4j.MDC.get("correlation_id");
+            if (correlationId != null) {
+              response.setHeader(properties.getCorrelationIdHeader(), correlationId);
+            }
 
-    try (var scope = com.corelogging.scope.ObservabilityScope.start(log, "in_request", "SERVER")) {
-      scope.tag("http.method", request.getMethod());
-      scope.tag("http.url", request.getRequestURI());
-
-      String correlationId = null;
-      for (String headerName : properties.getAcceptedCorrelationIdHeaders()) {
-        String val = request.getHeader(headerName);
-        if (val != null && !val.trim().isEmpty()) {
-          correlationId = val;
-          break;
-        }
-      }
-
-      if (correlationId == null) {
-        correlationId = org.slf4j.MDC.get("traceId");
-      }
-
-      if (correlationId == null) {
-        correlationId = java.util.UUID.randomUUID().toString();
-      }
-      scope.tag("correlation_id", correlationId);
-      responseToUse.setHeader(properties.getCorrelationIdHeader(), correlationId);
-
-      try {
-        filterChain.doFilter(requestToUse, responseToUse);
-      } catch (Throwable t) {
-        scope.recordError(t);
-        throw t;
-      } finally {
-        int status = responseToUse.getStatus();
-        if (scope.hasError()) {
-          if (status == 200) {
-            status = 500;
-          }
-        }
-        scope.tag("http.status_code", String.valueOf(status));
-        scope.computeDurationAs("http.duration_ms");
-
-        if (wrapPayload) {
-          logPayload(
-              (ContentCachingRequestWrapper) requestToUse,
-              (ContentCachingResponseWrapper) responseToUse,
-              scope);
-          ((ContentCachingResponseWrapper) responseToUse).copyBodyToResponse();
-        }
-
-        if (scope.hasError()) {
-          scope.closeWith(
-              "Failed processing incoming request {} {}",
-              request.getMethod(),
-              request.getRequestURI());
-        } else {
-          scope.closeWith(
-              "Processed incoming request {} {}", request.getMethod(), request.getRequestURI());
-        }
-      }
+            try {
+              payloadAuditor.auditAndProceed(request, response, filterChain);
+            } catch (Throwable t) {
+              context.recordError(t);
+              if (t instanceof Exception) throw (Exception) t;
+              throw new RuntimeException(t);
+            } finally {
+              applyStatusCode(response, context);
+            }
+          });
+    } catch (ServletException | IOException e) {
+      throw e;
+    } catch (RuntimeException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 
-  private void logPayload(
-      ContentCachingRequestWrapper request,
-      ContentCachingResponseWrapper response,
-      com.corelogging.scope.ObservabilityScope scope) {
-
-    byte[] requestBody = request.getContentAsByteArray();
-    if (requestBody.length > 0) {
-      scope.tag("http.request.body", obfuscator.process(new String(requestBody)));
+  private void applyStatusCode(HttpServletResponse response, TraceContext context) {
+    int status = response.getStatus();
+    if (context.hasError() && status == 200) {
+      status = 500;
     }
-
-    byte[] responseBody = response.getContentAsByteArray();
-    if (responseBody.length > 0) {
-      scope.tag("http.response.body", obfuscator.process(new String(responseBody)));
-    }
+    context.tag("http.status_code", String.valueOf(status));
   }
 
   @Override
   public int getOrder() {
-
     return Ordered.LOWEST_PRECEDENCE - 10;
   }
 }

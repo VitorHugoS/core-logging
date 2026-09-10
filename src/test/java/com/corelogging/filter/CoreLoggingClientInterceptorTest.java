@@ -90,6 +90,7 @@ class CoreLoggingClientInterceptorTest {
     ch.qos.logback.classic.spi.ILoggingEvent event = TestAppender.events.get(0);
     assertThat(event.getMDCPropertyMap().get("http.status_code")).isEqualTo("200");
     assertThat(event.getMDCPropertyMap().get("http.method")).isEqualTo("POST");
+    assertThat(event.getMDCPropertyMap().get("http.url")).isEqualTo("http://api.exemplo.com/test");
     assertThat(event.getMDCPropertyMap().get("http.duration_ms")).isNotNull();
     assertThat(Integer.parseInt(event.getMDCPropertyMap().get("http.duration_ms")))
         .isGreaterThanOrEqualTo(0);
@@ -160,5 +161,63 @@ class CoreLoggingClientInterceptorTest {
     assertThat(MDC.get("span.kind")).isEqualTo("previous_span_kind");
 
     MDC.clear();
+  }
+
+  @Test
+  void shouldPropagateRuntimeException() throws IOException {
+    given(request.getMethod()).willReturn(HttpMethod.GET);
+    given(request.getURI()).willReturn(URI.create("http://api.exemplo.com/test"));
+    given(execution.execute(any(), any())).willThrow(new RuntimeException("Runtime"));
+
+    try {
+      interceptor.intercept(request, body, execution);
+    } catch (RuntimeException e) {
+      assertThat(e.getMessage()).isEqualTo("Runtime");
+    }
+  }
+
+  @Test
+  void shouldWrapErrorInRuntimeException() throws IOException {
+    given(request.getMethod()).willReturn(HttpMethod.GET);
+    given(request.getURI()).willReturn(URI.create("http://api.exemplo.com/test"));
+    given(execution.execute(any(), any())).willThrow(new OutOfMemoryError("OOM"));
+
+    try {
+      interceptor.intercept(request, body, execution);
+    } catch (RuntimeException e) {
+      assertThat(e.getCause()).isInstanceOf(OutOfMemoryError.class);
+    }
+  }
+
+  @Test
+  void shouldIgnoreIOExceptionWhenGettingStatusCode() throws IOException {
+    given(request.getMethod()).willReturn(HttpMethod.GET);
+    given(request.getURI()).willReturn(URI.create("http://api.exemplo.com/test"));
+    given(execution.execute(any(), any())).willReturn(response);
+    given(response.getStatusCode()).willThrow(new IOException("Cannot read status"));
+
+    interceptor.intercept(request, body, execution);
+
+    assertThat(TestAppender.events).isNotEmpty();
+  }
+
+  @Test
+  void shouldWrapGenericExceptionFromTraceManager() throws Exception {
+    given(request.getMethod()).willReturn(HttpMethod.GET);
+    given(request.getURI()).willReturn(URI.create("http://api.exemplo.com/test"));
+
+    com.corelogging.trace.TraceManager mockManager = mock(com.corelogging.trace.TraceManager.class);
+    doThrow(new Exception("Generic")).when(mockManager).observe(any(), any(), any(), any());
+
+    java.lang.reflect.Field field =
+        CoreLoggingClientInterceptor.class.getDeclaredField("traceManager");
+    field.setAccessible(true);
+    field.set(interceptor, mockManager);
+
+    try {
+      interceptor.intercept(request, body, execution);
+    } catch (RuntimeException e) {
+      assertThat(e.getCause()).isInstanceOf(Exception.class).hasMessage("Generic");
+    }
   }
 }

@@ -102,6 +102,23 @@ class CoreLoggingFilterTest {
   }
 
   @Test
+  void shouldLogCustomStatusCodeOnSuccess() throws ServletException, IOException {
+    doAnswer(
+            invocation -> {
+              response.setStatus(201);
+              return null;
+            })
+        .when(filterChain)
+        .doFilter(any(), any());
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(TestAppender.events).isNotEmpty();
+    ch.qos.logback.classic.spi.ILoggingEvent event = TestAppender.events.get(0);
+    assertThat(event.getMDCPropertyMap().get("http.status_code")).isEqualTo("201");
+  }
+
+  @Test
   void shouldWrapOnlyIfNotAlreadyWrapped() throws ServletException, IOException {
     ContentCachingRequestWrapper wrappedReq = new ContentCachingRequestWrapper(request, 1024);
     ContentCachingResponseWrapper wrappedRes = new ContentCachingResponseWrapper(response);
@@ -156,6 +173,78 @@ class CoreLoggingFilterTest {
   void shouldReturnOrder() {
     assertThat(filter.getOrder())
         .isEqualTo(org.springframework.core.Ordered.LOWEST_PRECEDENCE - 10);
+  }
+
+  @Test
+  void shouldThrowServletException() throws ServletException, IOException {
+    ServletException exception = new ServletException("Servlet error");
+    doAnswer(
+            invocation -> {
+              throw exception;
+            })
+        .when(filterChain)
+        .doFilter(any(), any());
+
+    try {
+      filter.doFilter(request, response, filterChain);
+    } catch (ServletException e) {
+      assertThat(e).isEqualTo(exception);
+    }
+  }
+
+  @Test
+  void shouldThrowIOException() throws ServletException, IOException {
+    IOException exception = new IOException("IO error");
+    doAnswer(
+            invocation -> {
+              throw exception;
+            })
+        .when(filterChain)
+        .doFilter(any(), any());
+
+    try {
+      filter.doFilter(request, response, filterChain);
+    } catch (IOException e) {
+      assertThat(e).isEqualTo(exception);
+    }
+  }
+
+  @Test
+  void shouldThrowErrorAndWrapInRuntimeException() throws ServletException, IOException {
+    Error error = new OutOfMemoryError("OOM");
+    doAnswer(
+            invocation -> {
+              throw error;
+            })
+        .when(filterChain)
+        .doFilter(any(), any());
+
+    try {
+      filter.doFilter(request, response, filterChain);
+    } catch (Exception e) {
+      assertThat(e).isInstanceOf(RuntimeException.class);
+      assertThat(e.getCause()).isEqualTo(error);
+    }
+  }
+
+  @Test
+  void shouldLogGenericExceptionAndWrapInRuntimeException() throws ServletException, IOException {
+    Exception exception = new Exception("Generic error");
+    doAnswer(
+            invocation -> {
+              throw exception;
+            })
+        .when(filterChain)
+        .doFilter(any(), any());
+
+    try {
+      filter.doFilter(request, response, filterChain);
+    } catch (Exception e) {
+      assertThat(e).isInstanceOf(RuntimeException.class);
+      assertThat(e.getCause()).isEqualTo(exception);
+    }
+
+    assertThat(TestAppender.events).isNotEmpty();
   }
 
   @Test

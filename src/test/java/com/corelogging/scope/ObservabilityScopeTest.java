@@ -65,4 +65,13 @@ class ObservabilityScopeTest {
     ObservabilityScope returned = scope.recordError(new RuntimeException());
     assertThat(returned).isSameAs(scope);
   }
+
+  @Test
+  void testHasError() {
+    try (var scope = ObservabilityScope.start(log, "test", "TEST")) {
+      assertThat(scope.hasError()).isFalse();
+      scope.recordError(new RuntimeException());
+      assertThat(scope.hasError()).isTrue();
+    }
+  }
 }

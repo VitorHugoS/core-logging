@@ -1,10 +1,10 @@
 package com.corelogging.filter;
 
 import com.corelogging.config.CoreLoggingProperties;
+import com.corelogging.propagation.CoreLoggingPropagator;
+import com.corelogging.trace.DefaultTraceManager;
+import com.corelogging.trace.TraceManager;
 import java.io.IOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
@@ -12,48 +12,50 @@ import org.springframework.http.client.ClientHttpResponse;
 
 public class CoreLoggingClientInterceptor implements ClientHttpRequestInterceptor {
 
-  private static final Logger log = LoggerFactory.getLogger(CoreLoggingClientInterceptor.class);
-  private final CoreLoggingProperties properties;
+  private final TraceManager traceManager;
+  private final CoreLoggingPropagator propagator;
 
   public CoreLoggingClientInterceptor(CoreLoggingProperties properties) {
-    this.properties = properties;
+    this.traceManager = new DefaultTraceManager();
+    this.propagator = new CoreLoggingPropagator(properties);
   }
 
   @Override
   public ClientHttpResponse intercept(
       HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
 
-    try (var scope = com.corelogging.scope.ObservabilityScope.start(log, "out_request", "CLIENT")) {
-      if (request.getMethod() != null) {
-        scope.tag("http.method", request.getMethod().name());
-      }
-      scope.tag("http.url", request.getURI().toString());
+    final java.util.concurrent.atomic.AtomicReference<ClientHttpResponse> responseRef =
+        new java.util.concurrent.atomic.AtomicReference<>();
 
-      String correlationId = MDC.get("correlation_id");
-      if (correlationId != null) {
-        request.getHeaders().add(properties.getCorrelationIdHeader(), correlationId);
-      }
+    try {
+      traceManager.observe(
+          "out_request",
+          "CLIENT",
+          "outgoing request " + request.getMethod() + " " + request.getURI(),
+          context -> {
+            if (request.getMethod() != null) {
+              context.tag("http.method", request.getMethod().name());
+            }
+            context.tag("http.url", request.getURI().toString());
 
-      ClientHttpResponse response = null;
-      try {
-        response = execution.execute(request, body);
-        return response;
-      } catch (Throwable t) {
-        scope.recordError(t);
-        throw t;
-      } finally {
-        scope.computeDurationAs("http.duration_ms");
-        if (response != null) {
-          scope.tag("http.status_code", String.valueOf(response.getStatusCode().value()));
-        }
+            propagator.inject(
+                null, request, (carrier, key, value) -> carrier.getHeaders().add(key, value));
 
-        if (scope.hasError()) {
-          scope.closeWith("Failed outgoing request {} {}", request.getMethod(), request.getURI());
-        } else {
-          scope.closeWith(
-              "Processed outgoing request {} {}", request.getMethod(), request.getURI());
-        }
-      }
+            ClientHttpResponse response = execution.execute(request, body);
+            responseRef.set(response);
+            if (response != null) {
+              try {
+                context.tag("http.status_code", String.valueOf(response.getStatusCode().value()));
+              } catch (IOException e) {
+                // Ignore
+              }
+            }
+          });
+      return responseRef.get();
+    } catch (IOException | RuntimeException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 }
