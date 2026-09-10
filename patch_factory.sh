@@ -1,3 +1,5 @@
+#!/bin/bash
+cat << 'INNER_EOF' > src/main/java/com/corelogging/CoreLoggerFactory.java
 package com.corelogging;
 
 import com.corelogging.config.CoreLoggingProperties;
@@ -12,8 +14,7 @@ public class CoreLoggerFactory {
 
   public CoreLoggerFactory(ObjectMapper objectMapper, CoreLoggingProperties properties) {
     this.objectMapper = objectMapper;
-    this.obfuscateFields =
-        properties != null ? properties.getPayload().getObfuscateFields() : List.of();
+    this.obfuscateFields = properties != null ? properties.getPayload().getObfuscateFields() : List.of();
   }
 
   public CoreLogger getLogger(Class<?> clazz) {
@@ -24,3 +25,4 @@ public class CoreLoggerFactory {
     return new CoreLogger(LoggerFactory.getLogger(name), objectMapper, obfuscateFields);
   }
 }
+INNER_EOF

@@ -41,6 +41,10 @@ public class CoreLoggingKafkaConsumerInterceptor<K, V> implements RecordIntercep
     }
 
     if (correlationId == null) {
+      correlationId = org.slf4j.MDC.get("traceId");
+    }
+
+    if (correlationId == null) {
       correlationId = UUID.randomUUID().toString();
     }
 

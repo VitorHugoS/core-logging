@@ -61,6 +61,10 @@ public class CoreLoggingFilter extends OncePerRequestFilter implements Ordered {
       }
 
       if (correlationId == null) {
+        correlationId = org.slf4j.MDC.get("traceId");
+      }
+
+      if (correlationId == null) {
         correlationId = java.util.UUID.randomUUID().toString();
       }
       scope.tag("correlation_id", correlationId);

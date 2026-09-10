@@ -67,7 +67,7 @@ class CoreLoggingAutoConfigurationTest {
 
     CoreLoggingFilter filter = autoConfiguration.coreLoggingFilter(properties);
     com.corelogging.CoreLoggerFactory factory =
-        autoConfiguration.coreLoggerFactory(new tools.jackson.databind.ObjectMapper());
+        autoConfiguration.coreLoggerFactory(new tools.jackson.databind.ObjectMapper(), null);
     CoreLoggingClientInterceptor interceptor =
         autoConfiguration.coreLoggingClientInterceptor(new CoreLoggingProperties());
 
@@ -81,5 +81,12 @@ class CoreLoggingAutoConfigurationTest {
     assertThat(filter).isNotNull();
     assertThat(interceptor).isNotNull();
     assertThat(factory).isNotNull();
+  }
+
+  @Test
+  void shouldRegisterSecurityBeans() {
+    CoreLoggingAutoConfiguration.SecurityConfiguration secConfig =
+        new CoreLoggingAutoConfiguration.SecurityConfiguration();
+    assertThat(secConfig.coreLoggingSecurityFilter()).isNotNull();
   }
 }

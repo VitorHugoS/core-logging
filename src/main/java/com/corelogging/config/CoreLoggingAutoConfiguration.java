@@ -20,8 +20,9 @@ public class CoreLoggingAutoConfiguration {
 
   @Bean
   @ConditionalOnMissingBean
-  public CoreLoggerFactory coreLoggerFactory(tools.jackson.databind.ObjectMapper objectMapper) {
-    return new CoreLoggerFactory(objectMapper);
+  public CoreLoggerFactory coreLoggerFactory(
+      tools.jackson.databind.ObjectMapper objectMapper, CoreLoggingProperties properties) {
+    return new CoreLoggerFactory(objectMapper, properties);
   }
 
   @Bean
@@ -67,6 +68,14 @@ public class CoreLoggingAutoConfiguration {
     public com.corelogging.filter.CoreLoggingFeignRequestInterceptor
         coreLoggingFeignRequestInterceptor(CoreLoggingProperties properties) {
       return new com.corelogging.filter.CoreLoggingFeignRequestInterceptor(properties);
+    }
+  }
+
+  @ConditionalOnClass(name = "org.springframework.security.core.context.SecurityContextHolder")
+  static class SecurityConfiguration {
+    @Bean
+    public com.corelogging.filter.CoreLoggingSecurityFilter coreLoggingSecurityFilter() {
+      return new com.corelogging.filter.CoreLoggingSecurityFilter();
     }
   }
 }

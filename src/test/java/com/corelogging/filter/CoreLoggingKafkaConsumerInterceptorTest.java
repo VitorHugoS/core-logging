@@ -103,4 +103,14 @@ class CoreLoggingKafkaConsumerInterceptorTest {
     interceptor.success(record, consumer);
     assertThat(TestAppender.events).isEmpty();
   }
+
+  @Test
+  void shouldFallbackToTraceIdWhenHeaderIsMissing() {
+    MDC.put("traceId", "my-otel-trace-id");
+    when(record.headers()).thenReturn(new org.apache.kafka.common.header.internals.RecordHeaders());
+
+    interceptor.intercept(record, consumer);
+
+    assertThat(MDC.get("correlation_id")).isEqualTo("my-otel-trace-id");
+  }
 }

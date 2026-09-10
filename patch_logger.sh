@@ -1,12 +1,14 @@
+#!/bin/bash
+cat << 'INNER_EOF' > src/main/java/com/corelogging/CoreLogger.java
 package com.corelogging;
 
-import com.corelogging.utils.LogSanitizer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
 import tools.jackson.databind.ObjectMapper;
+import com.corelogging.utils.LogSanitizer;
 
 public class CoreLogger {
 
@@ -58,12 +60,7 @@ public class CoreLogger {
     private final Map<String, String> customFields = new HashMap<>();
 
     LogBuilder(
-        Logger logger,
-        LogLevel level,
-        String format,
-        Object[] args,
-        ObjectMapper objectMapper,
-        List<String> obfuscateFields) {
+        Logger logger, LogLevel level, String format, Object[] args, ObjectMapper objectMapper, List<String> obfuscateFields) {
       this.logger = logger;
       this.level = level;
       this.format = format;
@@ -180,3 +177,4 @@ public class CoreLogger {
     }
   }
 }
+INNER_EOF
