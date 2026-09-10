@@ -36,7 +36,7 @@ public class CoreLoggingAutoConfiguration {
       var contextMap = MDC.getCopyOfContextMap();
       return () -> {
         try {
-          if (contextMap != null) {
+          if (contextMap != null && !contextMap.isEmpty()) {
             MDC.setContextMap(contextMap);
           } else {
             MDC.clear();
